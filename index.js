@@ -1,26 +1,33 @@
-process.env.UV_THREADPOOL_SIZE = 1;
 const cluster = require('cluster');
 const express = require("express");
-const crypto = require('crypto');
 const app = express();
 
-// is the file in mastreMode
-if (cluster.isMaster) {
-    // thill cause index.js to run in childMode
-    cluster.fork();
-} else {
-    // thill act like a child and only run as server and nthg else
-    app.get('/', (req, res) => {
-        const start = Date.now();
-        crypto.pbkdf2('a', 'b', 100000, 512, 'sha512', () => {
-            console.log('1:', Date.now() - start)
-            res.send("Hello");
-        })
+app.get('/', (req, res) => {
+    // we cannot get the variable freely accessed in this function Worker()
+    // cus the function is not in this instace but another section of CPU
+    const worker = new Worker(function () {
+        this.onmessage = function () {
+            // invoked when app calls postMessage
+            let counter = 0;
+            while (counter < 1e9) {
+                counter++;
+            }
+            // this wil communicate the counter var to onmessage() callback
+            postMessage(counter);
+        }
     })
 
-    app.get('/fast', (req, res) => {
-        res.send("this was fast");
-    })
+    worker.onmessage = function (message) {
+        console.log(message);
+        res.send('' + message.data)
+    }
 
-    app.listen(3000);
-}
+    worker.postMessage();
+    res.send("Hello");
+})
+
+app.get('/fast', (req, res) => {
+    res.send("this was fast");
+})
+
+app.listen(3000);
