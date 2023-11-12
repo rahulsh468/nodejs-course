@@ -1,33 +1,45 @@
-const cluster = require('cluster');
-const express = require("express");
+const express = require('express');
+const mongoose = require('mongoose');
+const cookieSession = require('cookie-session');
+const passport = require('passport');
+const bodyParser = require('body-parser');
+const keys = require('./config/keys');
+
+require('./models/User');
+require('./models/Blog');
+require('./services/passport');
+
+mongoose.Promise = global.Promise;
+mongoose.connect(keys.mongoURI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
 const app = express();
 
-app.get('/', (req, res) => {
-    // we cannot get the variable freely accessed in this function Worker()
-    // cus the function is not in this instace but another section of CPU
-    const worker = new Worker(function () {
-        this.onmessage = function () {
-            // invoked when app calls postMessage
-            let counter = 0;
-            while (counter < 1e9) {
-                counter++;
-            }
-            // this wil communicate the counter var to onmessage() callback
-            postMessage(counter);
-        }
-    })
+app.use(bodyParser.json());
+app.use(
+  cookieSession({
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    keys: [keys.cookieKey]
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
 
-    worker.onmessage = function (message) {
-        console.log(message);
-        res.send('' + message.data)
-    }
+require('./routes/authRoutes')(app);
+require('./routes/blogRoutes')(app);
 
-    worker.postMessage();
-    res.send("Hello");
-})
+if (['production'].includes(process.env.NODE_ENV)) {
+  app.use(express.static('client/build'));
 
-app.get('/fast', (req, res) => {
-    res.send("this was fast");
-})
+  const path = require('path');
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve('client', 'build', 'index.html'));
+  });
+}
 
-app.listen(3000);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Listening on port`, PORT);
+});
