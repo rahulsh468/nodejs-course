@@ -44,7 +44,7 @@ module.exports = app => {
 
 
     // AFTER
-    const blogs = await Blog.find({ _user: req.user.id });
+    const blogs = await Blog.find({ _user: req.user.id }).cache();
     res.send(blogs);
   });
 
