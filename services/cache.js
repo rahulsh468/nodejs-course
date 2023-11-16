@@ -5,13 +5,16 @@ const util = require('util');
 
 const redisURl = 'redis://127.0.0.1:6379';
 const client = redis.createClient(redisURl);
-client.get = util.promisify(client.get);
+client.hget = util.promisify(client.hget);
 
 // here impleting a .cache function to be added to mongoose queries to let
 // know which to cache which to not
 // always use function keyword as arrow function will mess with logic of (this)
-mongoose.Query.prototype.cache = function () {
+mongoose.Query.prototype.cache = function (options = {}) {
     this.useCache = true;
+
+    this.hashKey = JSON.stringify(options.key || '');
+
     // this will make it chainable like
     // now we can add like .limit().sort() etc
     return this;
@@ -27,7 +30,7 @@ mongoose.Query.prototype.exec = async function () {
         collection: this.mongooseCollection.name
     }));
     // see if this key already has an value
-    const cachedValue = await client.get(key);
+    const cachedValue = await client.hget(this.hashKey , key);
     // if there is return that
     if (cachedValue) {
         console.log('From cache')
@@ -46,7 +49,7 @@ mongoose.Query.prototype.exec = async function () {
     // Execute mongodb query and store the result and return the same
     const result = await exec.apply(this, arguments);
 
-    client.set(key, JSON.stringify(result));
+    client.hset(this.hashKey, key,JSON.stringify(result) , 'EX' , 10);
 
     return result;
 }
