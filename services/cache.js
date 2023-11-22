@@ -53,3 +53,11 @@ mongoose.Query.prototype.exec = async function () {
 
     return result;
 }
+
+module.exports = {
+    // This will clear all the prev cache data
+    // This needs to be automated
+    clearHash(hashKey){
+        client.del(JSON.stringify(hashKey));
+    }
+}
